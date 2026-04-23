@@ -1,0 +1,29 @@
+[package]
+name        = "eth-core"
+description = "no_std Ethereum primitives: Keccak-256, RLP, ABI, EIP-155 transactions, k256 signing"
+version.workspace     = true
+edition.workspace     = true
+rust-version.workspace = true
+license.workspace     = true
+authors.workspace     = true
+repository.workspace  = true
+homepage.workspace    = true
+keywords.workspace    = true
+categories.workspace  = true
+
+[features]
+default = ["std"]
+std     = ["thiserror"]
+serde   = ["dep:serde"]
+
+[dependencies]
+k256      = { version = "0.13", default-features = false, features = ["ecdsa"] }
+thiserror = { version = "1.0", optional = true }
+serde     = { version = "1.0", default-features = false, features = ["derive"], optional = true }
+
+[dev-dependencies]
+# sha3 is only in dev-deps so it never enters the production binary;
+# it's used to cross-check our hand-rolled keccak against a known-good impl.
+sha3       = "0.10"
+serde_json = "1.0"
+hex-literal = "0.4"

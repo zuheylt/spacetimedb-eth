@@ -1,0 +1,15 @@
+[package]
+name        = "event_listener"
+description = "Example: subscribe to arbitrary contract events and write them to SpacetimeDB"
+version.workspace     = true
+edition.workspace     = true
+rust-version.workspace = true
+license.workspace     = true
+
+[[bin]]
+name = "event_listener"
+path = "src/main.rs"
+
+[dependencies]
+eth-core   = { path = "../../crates/eth-core" }
+eth-module = { path = "../../crates/eth-module" }

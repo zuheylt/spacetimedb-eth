@@ -1,0 +1,29 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish:
+    name: Publish crates to crates.io
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install stable Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # Crates must be published in dependency order:
+      # eth-core has no internal deps → publish first
+      # eth-module depends on eth-core → publish second
+      # eth-sidecar depends on both  → publish last
+      - name: Publish eth-core
+        run: cargo publish -p eth-core --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Publish eth-module
+        run: cargo publish -p eth-module --token ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+      - name: Publish eth-sidecar
+        run: cargo publish -p eth-sidecar --token ${{ secrets.CARGO_REGISTRY_TOKEN }}

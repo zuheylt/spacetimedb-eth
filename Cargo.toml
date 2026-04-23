@@ -1,0 +1,35 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/eth-core",
+    "crates/eth-module",
+    "crates/eth-sidecar",
+    "examples/token_transfer",
+    "examples/event_listener",
+]
+
+[workspace.package]
+version      = "0.1.0"
+edition      = "2021"
+rust-version = "1.75"
+license      = "MIT OR Apache-2.0"
+authors      = ["spacetimedb-ethereum contributors"]
+repository   = "https://github.com/zuheylt/spacetimedb-eth"
+homepage     = "https://github.com/zuheylt/spacetimedb-eth"
+keywords     = ["ethereum", "web3", "spacetimedb", "blockchain", "evm"]
+categories   = ["cryptography::cryptocurrencies", "network-programming"]
+
+[workspace.dependencies]
+# eth-core
+k256        = { version = "0.13", default-features = false, features = ["ecdsa"] }
+thiserror   = { version = "1.0" }
+serde       = { version = "1.0", default-features = false, features = ["derive"] }
+serde_json  = { version = "1.0" }
+
+# eth-module / eth-sidecar
+spacetimedb-sdk = { version = "2.1" }
+tokio           = { version = "1", features = ["full"] }
+toml            = { version = "0.8" }
+
+# testing only
+sha3        = { version = "0.10" }

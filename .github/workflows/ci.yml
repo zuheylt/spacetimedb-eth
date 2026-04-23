@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  test:
+    name: Test (${{ matrix.rust }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        rust: [stable, "1.75"]   # stable + MSRV
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust ${{ matrix.rust }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+
+      - name: Cache cargo registry
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ matrix.rust }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: fmt check
+        run: cargo fmt --all -- --check
+
+      - name: clippy (all features)
+        run: cargo clippy --all-features -- -D warnings
+
+      - name: clippy (no_std core)
+        run: cargo clippy -p eth-core --no-default-features -- -D warnings
+
+      - name: test (all features)
+        run: cargo test --all-features
+
+      - name: test (no_std core — verifies wasm32 compatibility)
+        run: cargo test -p eth-core --no-default-features
+
+      - name: build wasm32 (eth-core only, no_std)
+        run: cargo build -p eth-core --no-default-features --target wasm32-unknown-unknown
+
+      - name: doc
+        run: cargo doc --no-deps --all-features
