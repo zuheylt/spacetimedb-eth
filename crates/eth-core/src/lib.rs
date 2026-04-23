@@ -25,8 +25,7 @@
 extern crate alloc;
 
 pub mod error;
-// Modules will be uncommented as we implement them:
-// pub mod keccak;
+pub mod keccak;
 // pub mod rlp;
 // pub mod types;
 // pub mod abi;
