@@ -63,8 +63,10 @@ fn keccak_f(state: &mut [u64; 25]) {
         for x in 0..5 {
             d[x] = c[(x + 4) % 5] ^ c[(x + 1) % 5].rotate_left(1);
         }
-        for i in 0..25 {
-            state[i] ^= d[i % 5];
+        for y in 0..5 {
+            for x in 0..5 {
+                state[x + 5 * y] ^= d[x];
+            }
         }
 
         // ── ρ (rho) + π (pi) — rotate lanes, then permute their positions
@@ -78,9 +80,8 @@ fn keccak_f(state: &mut [u64; 25]) {
         let mut temp = [0u64; 25];
         for x in 0..5_usize {
             for y in 0..5_usize {
-                let new_x = y;
                 let new_y = (2 * x + 3 * y) % 5;
-                temp[new_x + 5 * new_y] = state[x + 5 * y].rotate_left(RHO[x + 5 * y]);
+                temp[y + 5 * new_y] = state[x + 5 * y].rotate_left(RHO[x + 5 * y]);
             }
         }
         *state = temp;
@@ -170,9 +171,8 @@ pub fn keccak256(input: &[u8]) -> [u8; 32] {
 
     // Squeeze: the first 32 bytes of the state are the digest.
     let mut out = [0u8; 32];
-    for i in 0..4 {
-        let bytes = state[i].to_le_bytes();
-        out[i * 8..(i + 1) * 8].copy_from_slice(&bytes);
+    for (chunk, lane) in out.chunks_mut(8).zip(state[..4].iter()) {
+        chunk.copy_from_slice(&lane.to_le_bytes());
     }
     out
 }
