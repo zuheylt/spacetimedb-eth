@@ -113,8 +113,7 @@ fn keccak_f(state: &mut [u64; 25]) {
 
 /// XOR exactly `RATE` bytes from `block` into the state (the absorb step).
 fn absorb(state: &mut [u64; 25], block: &[u8; RATE]) {
-    // The state lanes are little-endian 64-bit integers.
-    // zip pairs each state lane with its 8-byte block chunk — no index needed.
+    // State lanes are little-endian 64-bit integers.
     for (lane, chunk) in state[..RATE / 8].iter_mut().zip(block.chunks_exact(8)) {
         *lane ^= u64::from_le_bytes([
             chunk[0], chunk[1], chunk[2], chunk[3],

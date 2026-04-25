@@ -64,12 +64,7 @@ impl RlpItem {
     /// assert_eq!(RlpItem::from_uint(1024), RlpItem::Bytes(vec![0x04, 0x00]));
     /// ```
     pub fn from_uint(n: u64) -> Self {
-        if n == 0 {
-            return RlpItem::Bytes(vec![]);
-        }
-        let bytes = n.to_be_bytes();
-        let trimmed: Vec<u8> = bytes.iter().copied().skip_while(|&b| b == 0).collect();
-        RlpItem::Bytes(trimmed)
+        RlpItem::Bytes(trim_be_zeros(&n.to_be_bytes()))
     }
 
     /// Create a `Bytes` item from a `u128`.
@@ -88,12 +83,7 @@ impl RlpItem {
     /// assert!(matches!(item, RlpItem::Bytes(_)));
     /// ```
     pub fn from_uint128(n: u128) -> Self {
-        if n == 0 {
-            return RlpItem::Bytes(vec![]);
-        }
-        let bytes = n.to_be_bytes();
-        let trimmed: Vec<u8> = bytes.iter().copied().skip_while(|&b| b == 0).collect();
-        RlpItem::Bytes(trimmed)
+        RlpItem::Bytes(trim_be_zeros(&n.to_be_bytes()))
     }
 
     // ── Encoding ─────────────────────────────────────────────────────────────
@@ -117,9 +107,7 @@ impl RlpItem {
         match self {
             RlpItem::Bytes(bytes) => encode_bytes(bytes),
             RlpItem::List(items) => {
-                // Encode each child item and concatenate into the payload.
                 let payload: Vec<u8> = items.iter().flat_map(|i| i.encode()).collect();
-                // Prepend the list length header (starts at 0xc0 for lists).
                 let mut out = length_prefix(payload.len(), 0xc0);
                 out.extend_from_slice(&payload);
                 out
@@ -130,12 +118,19 @@ impl RlpItem {
 
 // ── Encoding helpers ──────────────────────────────────────────────────────────
 
+/// Strip leading zero bytes from a big-endian byte slice.
+/// Produces an empty `Vec` for an all-zero input, matching Ethereum's
+/// "no leading zeros" integer encoding rule.
+fn trim_be_zeros(bytes: &[u8]) -> Vec<u8> {
+    bytes.iter().copied().skip_while(|&b| b == 0).collect()
+}
+
 fn encode_bytes(bytes: &[u8]) -> Vec<u8> {
-    // Rule 1: a single byte in [0x00, 0x7f] is its own encoding.
+    // RLP Rule 1: a single byte in [0x00, 0x7f] is its own encoding.
     if bytes.len() == 1 && bytes[0] < 0x80 {
         return bytes.to_vec();
     }
-    // Rules 2 & 3: length-prefixed string (offset 0x80 for strings).
+    // RLP Rules 2 & 3: length-prefixed string (offset 0x80 for strings).
     let mut out = length_prefix(bytes.len(), 0x80);
     out.extend_from_slice(bytes);
     out
@@ -161,12 +156,7 @@ fn length_prefix(len: usize, offset: u8) -> Vec<u8> {
 /// Encode a `usize` as big-endian bytes with no leading zeros.
 fn usize_to_be_bytes(n: usize) -> Vec<u8> {
     // Cast to u64 so the output width is platform-independent.
-    (n as u64)
-        .to_be_bytes()
-        .iter()
-        .copied()
-        .skip_while(|&b| b == 0)
-        .collect()
+    trim_be_zeros(&(n as u64).to_be_bytes())
 }
 
 // ── Decoding ──────────────────────────────────────────────────────────────────
@@ -204,17 +194,8 @@ pub fn decode(input: &[u8]) -> Result<(RlpItem, &[u8]), EthError> {
 
         // ── Long string [0xb8, 0xbf] — next (first-0xb7) bytes are length
         0xb8..=0xbf => {
-            let len_of_len = (first - 0xb7) as usize;
-            if input.len() < 1 + len_of_len {
-                return Err(EthError::RlpUnexpectedEof);
-            }
-            let len = be_bytes_to_usize(&input[1..1 + len_of_len])?;
-            let start = 1 + len_of_len;
-            let end = start + len;
-            if input.len() < end {
-                return Err(EthError::RlpUnexpectedEof);
-            }
-            Ok((RlpItem::Bytes(input[start..end].to_vec()), &input[end..]))
+            let (payload, rest) = decode_long_payload(input, 0xb7)?;
+            Ok((RlpItem::Bytes(payload.to_vec()), rest))
         }
 
         // ── Short list [0xc0, 0xf7] — payload length = first - 0xc0 ──────
@@ -230,18 +211,8 @@ pub fn decode(input: &[u8]) -> Result<(RlpItem, &[u8]), EthError> {
 
         // ── Long list [0xf8, 0xff] — next (first-0xf7) bytes are length ──
         0xf8..=0xff => {
-            let len_of_len = (first - 0xf7) as usize;
-            if input.len() < 1 + len_of_len {
-                return Err(EthError::RlpUnexpectedEof);
-            }
-            let len = be_bytes_to_usize(&input[1..1 + len_of_len])?;
-            let start = 1 + len_of_len;
-            let end = start + len;
-            if input.len() < end {
-                return Err(EthError::RlpUnexpectedEof);
-            }
-            let items = decode_list_payload(&input[start..end])?;
-            Ok((RlpItem::List(items), &input[end..]))
+            let (payload, rest) = decode_long_payload(input, 0xf7)?;
+            Ok((RlpItem::List(decode_list_payload(payload)?), rest))
         }
     }
 }
@@ -267,6 +238,25 @@ pub fn decode_exact(input: &[u8]) -> Result<RlpItem, EthError> {
 }
 
 // ── Decoding helpers ──────────────────────────────────────────────────────────
+
+/// Extract the payload and remaining bytes for a "long" RLP item
+/// (strings ≥ 56 bytes or lists with payload ≥ 56 bytes).
+///
+/// `base` is 0xb7 for strings and 0xf7 for lists; it is subtracted from
+/// the first byte to get the number of length bytes that follow.
+fn decode_long_payload(input: &[u8], base: u8) -> Result<(&[u8], &[u8]), EthError> {
+    let len_of_len = (input[0] - base) as usize;
+    if input.len() < 1 + len_of_len {
+        return Err(EthError::RlpUnexpectedEof);
+    }
+    let len = be_bytes_to_usize(&input[1..1 + len_of_len])?;
+    let start = 1 + len_of_len;
+    let end = start + len;
+    if input.len() < end {
+        return Err(EthError::RlpUnexpectedEof);
+    }
+    Ok((&input[start..end], &input[end..]))
+}
 
 /// Decode all RLP items packed sequentially into `payload`.
 fn decode_list_payload(mut payload: &[u8]) -> Result<Vec<RlpItem>, EthError> {
