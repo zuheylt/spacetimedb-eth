@@ -11,7 +11,7 @@
 //! | `std`   | yes     | `std::error::Error` impl on `EthError` via thiserror |
 //! | `serde` | no      | `Serialize`/`Deserialize` on all public types |
 //!
-//! ## Modules (filled in as we build)
+//! ## Modules
 //! - `keccak`  — Keccak-256 hash
 //! - `rlp`     — RLP encode / decode
 //! - `types`   — `Address`, `TxHash`, `Bytes32` newtypes

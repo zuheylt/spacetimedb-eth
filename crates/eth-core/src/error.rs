@@ -3,8 +3,8 @@
 /// All errors produced by `eth-core`.
 ///
 /// Designed so every public function returns `Result<T, EthError>`.
-/// Under `no_std` we provide a manual `Display`; under `std` the
-/// `thiserror` crate generates `Display` and `std::error::Error` for us.
+/// Under `no_std` a manual `Display` is provided; under `std` the
+/// `thiserror` crate generates `Display` and `std::error::Error`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum EthError {
@@ -45,9 +45,9 @@ pub enum EthError {
 }
 
 // ── Display ──────────────────────────────────────────────────────────────────
-// We write it manually so it works in both std and no_std.
-// thiserror generates this automatically when the `std` feature is on,
-// but only if we derive it — so we skip the derive and write it once.
+// Written manually so it compiles in both std and no_std.
+// thiserror would generate this via derive, but that requires std,
+// so a single hand-written impl covers both feature configurations.
 
 #[cfg(feature = "std")]
 impl std::error::Error for EthError {}

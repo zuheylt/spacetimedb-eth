@@ -76,7 +76,7 @@ fn keccak_f(state: &mut [u64; 25]) {
         //
         // π moves each lane to a new (x,y) position: A'[y, (2x+3y)%5] = A[x,y]
         //
-        // We apply both in a single pass to avoid two temporary copies.
+        // Applied in a single pass to avoid two temporary copies.
         let mut temp = [0u64; 25];
         for x in 0..5_usize {
             for y in 0..5_usize {
@@ -184,7 +184,7 @@ mod tests {
     use super::*;
     use hex_literal::hex;
 
-    // Cross-check our implementation against the `sha3` crate's Keccak256.
+    // Cross-checks this implementation against the `sha3` crate's Keccak256.
     fn reference(input: &[u8]) -> [u8; 32] {
         use sha3::Digest;
         sha3::Keccak256::digest(input).into()
