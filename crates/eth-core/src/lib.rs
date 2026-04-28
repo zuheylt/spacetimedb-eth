@@ -28,5 +28,5 @@ pub mod error;
 pub mod keccak;
 pub mod rlp;
 pub mod types;
-// pub mod abi;
+pub mod abi;
 // pub mod tx;

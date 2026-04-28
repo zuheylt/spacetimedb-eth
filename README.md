@@ -128,7 +128,8 @@ Rust 1.75+ required. Install via [rustup](https://rustup.rs).
 - [x] Keccak-256 — full sponge construction from spec, verified against published Ethereum test vectors and cross-checked against the `sha3` crate
 - [x] RLP encoding and decoding
 - [x] `Address`, `TxHash`, `Bytes32` newtypes with hex `Display` / `FromStr`
-- [ ] ABI encoding and decoding (all Solidity types)
+- [x] ABI encoding (`uint`, `address`, `bool`, `bytes<N>`, `bytes`, `string`, tuples)
+- [ ] ABI decoding
 - [ ] EIP-155 transaction builder + secp256k1 signing
 - [ ] JSON-RPC client (`eth_getLogs`, `eth_sendRawTransaction`, `eth_getTransactionReceipt`)
 - [ ] SpacetimeDB table definitions and scheduler
