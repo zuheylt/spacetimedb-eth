@@ -149,6 +149,13 @@ mod tests {
     }
 
     #[test]
+    fn address_display_is_lowercase() {
+        let addr = Address::from_bytes([0xAB; 20]);
+        let s = addr.to_string();
+        assert!(s[2..].chars().all(|c| !c.is_uppercase()));
+    }
+
+    #[test]
     fn address_roundtrip() {
         let raw = [0xab; 20];
         let addr = Address::from_bytes(raw);

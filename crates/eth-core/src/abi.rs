@@ -55,9 +55,7 @@ impl AbiToken {
     /// assert_eq!(t, AbiToken::Uint({ let mut b = [0u8; 32]; b[31] = 1; b }));
     /// ```
     pub fn from_u64(n: u64) -> Self {
-        let mut bytes = [0u8; 32];
-        bytes[24..].copy_from_slice(&n.to_be_bytes());
-        AbiToken::Uint(bytes)
+        AbiToken::Uint(u64_to_word(n))
     }
 
     /// Constructs `uint256` from a `u128`.
@@ -105,11 +103,16 @@ fn head_size(token: &AbiToken) -> usize {
     }
 }
 
-/// Encodes `n` as a 32-byte big-endian word (used for offsets and byte-lengths).
-fn word(n: usize) -> [u8; 32] {
+/// Encodes a `u64` as a 32-byte big-endian ABI word.
+fn u64_to_word(n: u64) -> [u8; 32] {
     let mut out = [0u8; 32];
-    out[24..].copy_from_slice(&(n as u64).to_be_bytes());
+    out[24..].copy_from_slice(&n.to_be_bytes());
     out
+}
+
+/// Encodes a `usize` as a 32-byte big-endian ABI word (used for offsets and byte-lengths).
+fn word(n: usize) -> [u8; 32] {
+    u64_to_word(n as u64) // usize ≤ u64 on all supported targets
 }
 
 /// Appends `data` to `buf`, then zero-pads to the next 32-byte boundary.
@@ -117,11 +120,11 @@ fn write_padded(buf: &mut Vec<u8>, data: &[u8]) {
     buf.extend_from_slice(data);
     let rem = data.len() % 32;
     if rem != 0 {
-        buf.extend(core::iter::repeat(0u8).take(32 - rem));
+        buf.resize(buf.len() + (32 - rem), 0);
     }
 }
 
-/// Writes the inline (static) encoding of `token` into `out`.
+/// Writes the inline (static) encoding of `token` directly into `out`.
 fn write_static(token: &AbiToken, out: &mut Vec<u8>) {
     match token {
         AbiToken::Uint(bytes) => out.extend_from_slice(bytes),
@@ -135,25 +138,40 @@ fn write_static(token: &AbiToken, out: &mut Vec<u8>) {
         }
         AbiToken::FixedBytes(data) => {
             out.extend_from_slice(data);
-            out.extend(core::iter::repeat(0u8).take(32 - data.len()));
+            out.resize(out.len() + (32 - data.len()), 0);
         }
-        AbiToken::Tuple(tokens) => out.extend(encode(tokens)),
-        _ => unreachable!(),
+        AbiToken::Tuple(tokens) => encode_into(tokens, out),
+        _ => unreachable!("write_static called on dynamic token"),
     }
 }
 
-/// Produces the tail encoding of a dynamic token.
-fn encode_tail(token: &AbiToken) -> Vec<u8> {
+/// Appends the tail encoding of a dynamic token directly into `out`.
+fn encode_tail_into(token: &AbiToken, out: &mut Vec<u8>) {
     match token {
         AbiToken::Bytes(data) | AbiToken::Str(data) => {
-            let mut out = Vec::new();
             out.extend_from_slice(&word(data.len()));
-            write_padded(&mut out, data);
-            out
+            write_padded(out, data);
         }
-        AbiToken::Tuple(tokens) => encode(tokens),
-        _ => unreachable!(),
+        AbiToken::Tuple(tokens) => encode_into(tokens, out),
+        _ => unreachable!("encode_tail_into called on static token"),
     }
+}
+
+/// Appends the ABI encoding of `tokens` directly into `out`.
+fn encode_into(tokens: &[AbiToken], out: &mut Vec<u8>) {
+    let total_head: usize = tokens.iter().map(head_size).sum();
+    let mut tail: Vec<u8> = Vec::new();
+
+    for token in tokens {
+        if is_dynamic(token) {
+            out.extend_from_slice(&word(total_head + tail.len()));
+            encode_tail_into(token, &mut tail);
+        } else {
+            write_static(token, out);
+        }
+    }
+
+    out.extend_from_slice(&tail);
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -172,21 +190,9 @@ fn encode_tail(token: &AbiToken) -> Vec<u8> {
 /// assert_eq!(out[63], 2);
 /// ```
 pub fn encode(tokens: &[AbiToken]) -> Vec<u8> {
-    let total_head: usize = tokens.iter().map(head_size).sum();
-    let mut head = Vec::with_capacity(total_head);
-    let mut tail: Vec<u8> = Vec::new();
-
-    for token in tokens {
-        if is_dynamic(token) {
-            head.extend_from_slice(&word(total_head + tail.len()));
-            tail.extend(encode_tail(token));
-        } else {
-            write_static(token, &mut head);
-        }
-    }
-
-    head.extend(tail);
-    head
+    let mut out = Vec::new();
+    encode_into(tokens, &mut out);
+    out
 }
 
 /// Returns the 4-byte function selector for a Solidity signature string.
@@ -200,8 +206,7 @@ pub fn encode(tokens: &[AbiToken]) -> Vec<u8> {
 /// assert_eq!(selector("transfer(address,uint256)"), [0xa9, 0x05, 0x9c, 0xbb]);
 /// ```
 pub fn selector(sig: &str) -> [u8; 4] {
-    let hash = keccak256(sig.as_bytes());
-    [hash[0], hash[1], hash[2], hash[3]]
+    keccak256(sig.as_bytes())[..4].try_into().unwrap()
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
