@@ -182,6 +182,8 @@ pub fn keccak256(input: &[u8]) -> [u8; 32] {
 mod tests {
     use super::*;
     use hex_literal::hex;
+    #[cfg(not(feature = "std"))]
+    use alloc::vec::Vec;
 
     // Cross-checks this implementation against the `sha3` crate's Keccak256.
     fn reference(input: &[u8]) -> [u8; 32] {
